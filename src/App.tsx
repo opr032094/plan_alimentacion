@@ -1,82 +1,24 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { clavesDe, personas, planes } from './planes';
+import type { Persona, Plan, Platillo, Tiempo } from './planes';
+import ListaCompra from './ListaCompra';
 
 /**
- * Plan de alimentación por mes. Cada plan de la nutrióloga vive en `planes`
- * bajo su clave 'AAAA-MM'; para agregar el de otro mes basta con sumar una
- * entrada (etiqueta, meta, guía y sus platillos) y aparece solo en el selector.
+ * Interfaz de los planes de alimentación (los datos viven en `planes.ts`).
+ * Dos vistas: Platillos (kcal por platillo, por persona y mes) y Lista de
+ * compra (checklist para surtir la despensa, de uno o los dos planes).
  *
  * Modo impresión: con `?print` en la URL se pintan TODOS los tiempos de comida
  * con el detalle expandido (sin tabs ni acordeón) — es lo que usa el PDF.
+ * `?print&plan=fernanda-2026-09` imprime un plan específico.
  */
 
-interface Platillo {
-  name: string;
-  kcal: number;
-  p: number; // proteína (g)
-  c: number; // carbohidratos (g)
-  g: number; // grasas (g)
-  detail: string;
-}
 
-type Tiempo = 'desayunos' | 'comidas' | 'cenas' | 'colaciones';
-
-interface Plan {
-  etiqueta: string;      // "Septiembre 2026"
-  meta: string;          // resumen de la meta calórica
-  guia: string;          // el tip de "cómo usar esta tabla"
-  meals: Record<Tiempo, Platillo[]>;
-}
-
-const planes: Record<string, Plan> = {
-  '2026-09': {
-    etiqueta: 'Septiembre 2026',
-    meta: '🎯 Desayuno ~420 kcal · Colación ~200 kcal · Comida ~430 kcal · Cena ~370 kcal = ~1,420 kcal base. Agrega colación post-entreno en días de gym.',
-    guia: 'Elige un platillo de cada tiempo de comida y suma las calorías. Si el total está entre 1,600–1,800 kcal estás en déficit. Los días de gym suma la colación post-entreno.',
-    meals: {
-      desayunos: [
-        { name: 'Huevo a la mexicana + 2 tortillas', kcal: 420, p: 28, c: 30, g: 12, detail: '2 huevos + ½ taza clara + tomate + cebolla + chile + aceite spray + 2 tortillas' },
-        { name: 'Omelette de champiñones + 2 tortillas', kcal: 400, p: 27, c: 28, g: 11, detail: '2 huevos + ½ taza clara + 1 taza champiñones + cebolla + aceite spray + 2 tortillas' },
-        { name: 'Rajas con queso + 2 tortillas', kcal: 450, p: 30, c: 26, g: 18, detail: '160g queso panela + chile poblano + cebolla + aceite spray + 2 tortillas' },
-        { name: 'Queso guisado + 2 tortillas', kcal: 440, p: 29, c: 27, g: 17, detail: '160g queso panela + tomate + cebolla + pimiento + aceite + 2 tortillas' },
-        { name: 'Huevo con papa + 2 tortillas', kcal: 430, p: 24, c: 38, g: 12, detail: '2 huevos + ½ taza clara + ½ papa + cebolla + tomate + aceite + 2 tortillas' },
-        { name: 'Pan tostado con huevo y aguacate', kcal: 420, p: 24, c: 32, g: 16, detail: '2 huevos + ½ taza clara + 2 panes integrales + ⅓ aguacate + tomate + aceite spray' },
-      ],
-      comidas: [
-        { name: 'Tostadas de atún con chipotle', kcal: 480, p: 38, c: 38, g: 16, detail: '2 bolsas atún + 4 tostadas + ½ aguacate + pimiento + cebolla + yogurt griego + chipotle' },
-        { name: 'Carne con papas en salsa verde + 2 tortillas', kcal: 420, p: 30, c: 42, g: 10, detail: '120g bistec + 1 papa + 2 zanahorias + tomatillos + aceite + 2 tortillas' },
-        { name: 'Espagueti verde con pollo + galletas', kcal: 430, p: 32, c: 40, g: 12, detail: '120g pollo + ½ taza pasta + zanahoria + pimiento + crema reducida + chile poblano + 2 paq galletas' },
-        { name: 'Taquitos de picadillo + 3 tortillas', kcal: 470, p: 28, c: 42, g: 16, detail: 'Carne molida + frijoles + 3 tortillas + lechuga + pico de gallo + ½ aguacate' },
-        { name: 'Tortitas de atún + ensalada', kcal: 400, p: 34, c: 32, g: 12, detail: '1 lata atún + huevo + zanahoria + harina avena + lechuga + espinaca + elote + 2 paq galletas' },
-        { name: 'Tostadas de pollo gobernador', kcal: 450, p: 36, c: 34, g: 14, detail: '120g pechuga + 4 tostadas + chile poblano + cebolla + tomate + 2 tzas lechuga' },
-        { name: 'Fajitas de res a la mexicana + arroz', kcal: 440, p: 32, c: 38, g: 14, detail: '150g fajitas res + ¼ taza arroz + cebolla + chile poblano + tomate + aceite aguacate + 2 galletas' },
-        { name: 'Ensalada buffalo de pollo', kcal: 380, p: 34, c: 24, g: 14, detail: '150g pollo + 2 tzas lechuga + espinaca + elote + zanahoria + salsa buffalo + 3 paq galletas' },
-        { name: 'Milanesa de res a la plancha + verduras', kcal: 380, p: 36, c: 10, g: 14, detail: '150g milanesa + 1 taza brócoli + 1 taza coliflor al vapor' },
-      ],
-      cenas: [
-        { name: 'Pan pita relleno de queso', kcal: 380, p: 28, c: 30, g: 14, detail: '1 pan pita integral + 2 reb queso panela + 2 reb pechuga pavo + pimiento + cebolla + aceite oliva' },
-        { name: 'Calabacitas con queso + tortillas + frijoles', kcal: 370, p: 24, c: 32, g: 14, detail: '120g queso panela + ½ calabacita + cebolla + tomate + 2 tortillas + ½ taza frijoles + ⅓ aguacate' },
-        { name: 'Miguitas con huevo + frijoles', kcal: 360, p: 22, c: 34, g: 12, detail: '2 huevos + ¼ taza clara + 2-3 tortillas cortadas + cebolla + tomate + ½ taza frijoles + aceite' },
-        { name: 'Burito de huevo integral', kcal: 350, p: 22, c: 28, g: 14, detail: '2 huevos + ¼ taza clara + tortilla harina integral + espinaca + tomate + queso oaxaca' },
-        { name: 'Taquitos de bistec + ensalada nopales', kcal: 400, p: 30, c: 30, g: 14, detail: '120g bistec + 3 tortillas + ½ taza nopal + cebolla + tomate + ½ aguacate' },
-        { name: 'Huevito con jamón + tortillas + frijoles', kcal: 340, p: 26, c: 30, g: 10, detail: '2 huevos + ¼ taza clara + 1 reb pechuga pavo + cebolla + tomate + 2 tortillas + ½ taza frijoles' },
-        { name: 'Queso guisado + tortillas + aguacate', kcal: 380, p: 24, c: 28, g: 16, detail: '80g queso panela + cebolla + tomate + 2 tortillas + ⅓ aguacate + aceite' },
-      ],
-      colaciones: [
-        { name: 'Pan tostado + mermelada + nuez/almendra', kcal: 220, p: 5, c: 28, g: 10, detail: '1 pan tostado integral + mermelada + 7 mitades nuez o 10 almendras' },
-        { name: 'Manzana + galleta Stila + nuez', kcal: 200, p: 4, c: 26, g: 9, detail: '1 manzana + barrita Stila Quaker + 7 mitades nuez o 10 almendras' },
-        { name: 'Tortitas de arroz + crema cacahuate + plátano', kcal: 280, p: 7, c: 36, g: 12, detail: '2 tortitas arroz + 2 cdas crema cacahuate + 1 plátano rebanado' },
-        { name: 'Licuado de plátano con avena', kcal: 290, p: 6, c: 40, g: 10, detail: '1 taza leche vegetal + 1 plátano + 3 cdas avena + 7 mitades nuez' },
-        { name: 'Fruta + nuez/almendra', kcal: 160, p: 3, c: 22, g: 8, detail: '1 porción fruta (manzana, mandarina, naranja, melón) + 7 mitades nuez o 10 almendras' },
-        { name: 'Bites energéticos (2 bolitas 30g c/u)', kcal: 180, p: 5, c: 24, g: 8, detail: 'Plátano + avena + 2 cditas miel + crema cacahuate reducida — versión Oscar' },
-        { name: 'Barrita K-Gear', kcal: 153, p: 21, c: 19, g: 3, detail: '21g proteína, 0g azúcar añadida — aprobada como post-entreno' },
-        { name: 'Yogur griego Yoplait + fruta', kcal: 200, p: 18, c: 20, g: 3, detail: '200g yogur griego natural + 1 porción fruta' },
-      ],
-    },
-  },
-};
-
-// Del más reciente al más viejo, para que el selector abra en el plan vigente.
-const clavesPlanes = Object.keys(planes).sort().reverse();
+type Vista = 'platillos' | 'compra';
+const vistas: { key: Vista; label: string }[] = [
+  { key: 'platillos', label: '🍽️ Platillos' },
+  { key: 'compra', label: '🛒 Lista de compra' },
+];
 
 const tabs: { key: Tiempo; label: string }[] = [
   { key: 'desayunos', label: 'Desayunos' },
@@ -105,13 +47,47 @@ function Macros({ m }: { m: Platillo }) {
   );
 }
 
+/** Hoja desde abajo con los pasos de un platillo. Cierra con X, tocando afuera o Esc. */
+function ModalReceta({ m, color, onClose }: { m: Platillo; color: (typeof colors)[Tiempo]; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={m.name}
+        className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-4 max-h-[85vh] overflow-y-auto shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div>
+            <p className={`font-bold text-base ${color.text}`}>{m.name}</p>
+            <p className="text-xs text-gray-400">{m.kcal} kcal</p>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="text-gray-400 text-xl leading-none px-2">×</button>
+        </div>
+        <p className="text-xs font-semibold text-gray-700 mb-1">Ingredientes</p>
+        <p className="text-xs text-gray-500 mb-3">{m.detail}</p>
+        <p className="text-xs font-semibold text-gray-700 mb-1">Preparación</p>
+        <p className="text-sm text-gray-700 leading-relaxed">{m.preparacion}</p>
+        <button onClick={onClose} className="mt-4 w-full py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">Cerrar</button>
+      </div>
+    </div>
+  );
+}
+
 /** Todo expandido, sin interacción: la vista del PDF (`?print`). */
 function VistaImpresion({ clave, plan }: { clave: string; plan: Plan }) {
   return (
     <div className="max-w-2xl mx-auto p-4 font-sans">
       <div className="text-center mb-3">
-        <h1 className="text-xl font-bold text-gray-800">Plan de alimentación — {plan.etiqueta}</h1>
-        <p className="text-xs text-gray-500">Calorías por platillo · plan de la nutrióloga ({clave})</p>
+        <h1 className="text-xl font-bold text-gray-800">Plan de alimentación de {plan.persona} — {plan.etiqueta}</h1>
+        <p className="text-xs text-gray-500">Calorías por platillo · {plan.subtitulo} ({clave})</p>
       </div>
       <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-3 mb-4 text-xs text-yellow-800">{plan.meta}</div>
       {tabs.map(({ key, label }) => {
@@ -128,6 +104,7 @@ function VistaImpresion({ clave, plan }: { clave: string; plan: Plan }) {
                   </div>
                   <p className="text-xs text-gray-500 mb-2">{m.detail}</p>
                   <Macros m={m} />
+                  {m.preparacion && <p className="text-xs text-gray-600 mt-2"><span className="font-semibold">Preparación:</span> {m.preparacion}</p>}
                 </div>
               ))}
             </div>
@@ -138,30 +115,100 @@ function VistaImpresion({ clave, plan }: { clave: string; plan: Plan }) {
         <p className="font-semibold mb-1 text-gray-700">💡 Cómo usar esta tabla</p>
         <p>{plan.guia}</p>
       </div>
+      <Extras plan={plan} />
+    </div>
+  );
+}
+
+/** Listas sueltas del PDF (equivalencias, bebidas…), si el plan las trae. */
+function Extras({ plan }: { plan: Plan }) {
+  if (!plan.extras?.length) return null;
+  return (
+    <div className="mt-3 space-y-2">
+      {plan.extras.map((x) => (
+        <div key={x.titulo} className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-600" style={{ breakInside: 'avoid' }}>
+          <p className="font-semibold mb-1 text-gray-700">{x.titulo}</p>
+          <p>{x.texto}</p>
+        </div>
+      ))}
     </div>
   );
 }
 
 export default function App() {
-  const [clavePlan, setClavePlan] = useState(clavesPlanes[0]);
+  const params = useMemo(() => new URLSearchParams(window.location.search), []);
+  const print = params.has('print');
+  // `?plan=fernanda-2026-09` abre (o imprime) un plan específico.
+  const planInicial = params.get('plan');
+  const [persona, setPersona] = useState<Persona>(
+    planInicial && planes[planInicial] ? planes[planInicial].persona : personas[0],
+  );
+  const [clavePlan, setClavePlan] = useState(
+    planInicial && planes[planInicial] ? planInicial : clavesDe(personas[0])[0],
+  );
   const [tab, setTab] = useState<Tiempo>('desayunos');
   const [open, setOpen] = useState<number | null>(null);
-  const print = useMemo(() => new URLSearchParams(window.location.search).has('print'), []);
+  const [receta, setReceta] = useState<Platillo | null>(null);
+  // `?vista=compra` abre directo la lista de compra.
+  const [vista, setVista] = useState<Vista>(params.get('vista') === 'compra' ? 'compra' : 'platillos');
+  const clavesPlanes = clavesDe(persona);
+
+  const cambiarPersona = (p: Persona) => {
+    setPersona(p);
+    setClavePlan(clavesDe(p)[0]);
+    setOpen(null);
+  };
 
   const plan = planes[clavePlan];
   const c = colors[tab];
 
   if (print) return <VistaImpresion clave={clavePlan} plan={plan} />;
 
+  const navegacion = (
+    <div className="flex rounded-xl overflow-hidden border border-gray-300 mb-4">
+      {vistas.map(({ key, label }) => (
+        <button
+          key={key}
+          onClick={() => setVista(key)}
+          className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${vista === key ? 'bg-gray-800 text-white' : 'bg-white text-gray-600'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (vista === 'compra') {
+    return (
+      <div className="max-w-2xl mx-auto p-4 font-sans">
+        {navegacion}
+        <ListaCompra />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto p-4 font-sans">
+      {navegacion}
       <div className="text-center mb-3">
         <h1 className="text-xl font-bold text-gray-800">Calorías por Platillo</h1>
-        <p className="text-xs text-gray-500">Plan de la nutrióloga · Meta: 1,700–1,800 kcal/día en déficit</p>
+        <p className="text-xs text-gray-500">Plan de la nutrióloga · {plan.subtitulo}</p>
+      </div>
+
+      <div className="flex rounded-xl overflow-hidden border border-gray-200 mb-3">
+        {personas.map((p) => (
+          <button
+            key={p}
+            onClick={() => cambiarPersona(p)}
+            className={`flex-1 py-2 text-sm font-semibold transition-colors ${persona === p ? 'bg-gray-800 text-white' : 'bg-white text-gray-600'}`}
+          >
+            {p}
+          </button>
+        ))}
       </div>
 
       <label className="flex items-center justify-center gap-2 mb-3 text-sm text-gray-600">
-        Plan:
+        Mes:
         <select
           value={clavePlan}
           onChange={(e) => { setClavePlan(e.target.value); setOpen(null); }}
@@ -204,6 +251,14 @@ export default function App() {
               <div className="px-4 pb-3 space-y-2">
                 <p className="text-xs text-gray-500">{m.detail}</p>
                 <Macros m={m} />
+                {m.preparacion && (
+                  <button
+                    onClick={() => setReceta(m)}
+                    className={`w-full py-2 rounded-lg text-xs font-semibold ${c.badge} text-white`}
+                  >
+                    🍳 Cómo se prepara
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -214,6 +269,8 @@ export default function App() {
         <p className="font-semibold mb-1 text-gray-700">💡 Cómo usar esta tabla</p>
         <p>{plan.guia}</p>
       </div>
+      <Extras plan={plan} />
+      {receta && <ModalReceta m={receta} color={c} onClose={() => setReceta(null)} />}
     </div>
   );
 }
